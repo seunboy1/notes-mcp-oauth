@@ -32,7 +32,7 @@ It also asserts the failure modes, which is the actual point. Authorize without 
 Fittingly, while writing this post my own suite "failed" 7 checks. Cause: tokens minted for `127.0.0.1` hitting a server whose identity is `localhost`. Audience validation doing its job perfectly. I fixed the default and kept the lesson.
 
 All three stages and all 58 checks are here:
-REPO_URL_PLACEHOLDER
+https://github.com/seunboy1/notes-mcp-oauth
 
 Is shipping a remote MCP server without auth ever acceptable?
 

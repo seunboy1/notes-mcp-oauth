@@ -15,7 +15,7 @@ A real resource server: RFC 9728 metadata, a 401 that tells the client where to 
 
 Four things I'd call non-negotiable:
 
-𝗔𝘂𝗱𝗶𝗲𝗻𝗰𝗲 𝘃𝗮𝗹𝗶𝗱𝗮𝘁𝗶𝗼𝗻 𝗶𝘀𝗻'𝘁 𝗼𝗽𝘁𝗶𝗼𝗻𝗮𝗹. If you don't check that a token was minted for *your* resource, any server your user logs into can replay their token against you. That's the confused-deputy problem the MCP spec calls out by name.
+𝗔𝘂𝗱𝗶𝗲𝗻𝗰𝗲 𝘃𝗮𝗹𝗶𝗱𝗮𝘁𝗶𝗼𝗻 𝗶𝘀𝗻'𝘁 𝗼𝗽𝘁𝗶𝗼𝗻𝗮𝗹. If you don't check a token was minted for *your* resource, any server your user logs into can replay their token against you. That's the confused-deputy problem the MCP spec names.
 
 𝗛𝗶𝗱𝗶𝗻𝗴 𝗮 𝘁𝗼𝗼𝗹 𝗶𝘀 𝗻𝗼𝘁 𝗮 𝗰𝗼𝗻𝘁𝗿𝗼𝗹. Leaving a tool out of `tools/list` is a UX affordance — a client can still call it by name. Scope checks belong in the tool body too.
 
@@ -23,13 +23,13 @@ Four things I'd call non-negotiable:
 
 𝗗𝗼𝗻'𝘁 𝗹𝗲𝗮𝗸 𝗲𝘅𝗶𝘀𝘁𝗲𝗻𝗰𝗲. `get_note` returns the same "not found" whether the id is absent or owned by someone else.
 
-The part that took longest: you cannot test an auth flow you cannot run. So the repo also ships a complete OAuth 2.1 authorization server for localhost — discovery, dynamic client registration, PKCE, JWKS, a consent screen, refresh-token rotation. ~450 lines, dev only.
+You cannot test an auth flow you cannot run, so the repo also ships a complete OAuth 2.1 authorization server for localhost — discovery, dynamic client registration, PKCE, JWKS, consent, refresh rotation. ~450 lines, dev only.
 
-That's what makes the headline test possible: Playwright drives the whole dance in Chromium — anonymous call → 401 → discovery → dynamic registration → PKCE → consent → loopback redirect → code exchange → tool calls → refresh rotation.
+That's what makes the headline test possible: Playwright drives the whole dance in Chromium — anonymous call → 401 → discovery → registration → PKCE → consent → loopback redirect → code exchange → tool calls → refresh rotation.
 
-It also asserts the failure modes, which is the actual point. Authorize without PKCE is rejected. A replayed code is rejected. A foreign-audience token is rejected. And a user who unticks `notes:write` on the consent screen gets a token that genuinely cannot write.
+It also asserts the failure modes, which is the actual point. Authorize without PKCE is rejected. A replayed code is rejected. A foreign-audience token is rejected. And a user who unticks `notes:write` at consent gets a token that genuinely cannot write.
 
-Fittingly, while writing this post my own suite "failed" 7 checks. Cause: tokens minted for `127.0.0.1` hitting a server whose identity is `localhost`. Audience validation doing its job perfectly. I fixed the default and kept the lesson.
+Fittingly, while writing this my own suite "failed" 7 checks: tokens minted for `127.0.0.1` hitting a server whose identity is `localhost`. Audience validation doing its job perfectly.
 
 All three stages and all 58 checks are here:
 https://github.com/seunboy1/notes-mcp-oauth

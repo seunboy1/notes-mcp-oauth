@@ -32,6 +32,10 @@ SHOT_DIR = ROOT / "linkedin" / "shots"
 POST_FILE = ROOT / "linkedin" / "post.md"
 IMAGE_FILE = ROOT / "linkedin" / "harness-diagram.png"
 
+FEED_URL = "https://www.linkedin.com/feed/"
+LOGIN_URL = "https://www.linkedin.com/login"
+
+
 # A post is a (text, image) pair. Both are overridable so one script can drive
 # several drafts; the image is looked up beside the post file when not given.
 def resolve_sources(args: argparse.Namespace) -> tuple[Path, Path]:
@@ -46,35 +50,44 @@ def resolve_sources(args: argparse.Namespace) -> tuple[Path, Path]:
         sidecar = post.with_suffix(".png")
         image = sidecar if sidecar.exists() else IMAGE_FILE
     return post, image
-FEED_URL = "https://www.linkedin.com/feed/"
-LOGIN_URL = "https://www.linkedin.com/login"
 
-# Every selector list is tried in order; LinkedIn ships several UI variants and
-# localizes aria-labels, so each step keeps a structural fallback last.
+
+# Selector lists are tried in order. LinkedIn's feed now ships *hashed* class
+# names (`aa973a6b _13f3dfd8 ...`) that change between deploys, so every
+# semantic class selector that used to work is dead. Visible text and ARIA
+# roles are the only durable anchors, and the composer entry point is a
+# `div[role=button]`, not a `<button>` — hence `:has-text` on both.
 SEL = {
     "signed_in": [
-        "button.share-box-feed-entry__trigger",
-        "div.share-box-feed-entry__wrapper",
-        "#global-nav",
-        "img.global-nav__me-photo",
+        "div[role='button']:has-text('Start a post')",
+        # Once a draft exists the entry point relabels itself to
+        # `Draft: "<first words>…"`, so matching only "Start a post" makes a
+        # signed-in session look signed-out on every subsequent run.
+        "div[role='button']:has-text('Draft:')",
+        "a[href*='/in/']",
+        "a[href*='/feed/']",
+        "header",
     ],
     "start_post": [
-        "button.share-box-feed-entry__trigger",
+        "div[role='button']:has-text('Start a post')",
+        "div[role='button']:has-text('Draft:')",
         "button:has-text('Start a post')",
-        "button:has-text('Create a post')",
-        "div.share-box-feed-entry__wrapper button",
+        "div[role='button']:has-text('Create a post')",
+        "*:has-text('Start a post')",
     ],
     "editor": [
-        "div.ql-editor[contenteditable='true']",
         "div[role='textbox'][contenteditable='true']",
+        "div.ql-editor[contenteditable='true']",
         "div[aria-label*='Text editor']",
-        "div.share-creation-state__text-editor div[contenteditable='true']",
+        "div[contenteditable='true']",
     ],
     "add_media": [
+        "button[aria-label='Media']",
         "button[aria-label='Add media']",
         "button[aria-label='Add a photo']",
         "button[aria-label*='photo']",
         "button[aria-label*='media']",
+        "div[role='button']:has-text('Photo')",
     ],
     "file_input": [
         "input[type='file'][accept*='image']",
@@ -86,17 +99,20 @@ SEL = {
         "button:has-text('Next')",
         "button:has-text('Done')",
         "button[aria-label='Next']",
+        "div[role='button']:has-text('Next')",
     ],
     "dismiss": [
         "button[aria-label='Dismiss']",
         "button[aria-label='Close']",
+        "div[role='button'][aria-label='Dismiss']",
         "button.share-box_closeBtn",
     ],
     "save_draft": [
         "button:has-text('Save as draft')",
         "button:has-text('Save draft')",
-        "button:has-text('Save')",
+        "div[role='button']:has-text('Save as draft')",
         "div[role='alertdialog'] button:has-text('Save')",
+        "button:has-text('Save')",
     ],
 }
 
@@ -122,19 +138,36 @@ def load_post(path: Path) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+LINKEDIN_LIMIT = 3000
+
+
+def li_len(text: str) -> int:
+    """Length the way LinkedIn counts it.
+
+    The composer counts UTF-16 code units, not Unicode scalars. The bold
+    headers in these posts are astral (U+1D5D4 block) and cost **two** units
+    each, so `len(text)` silently under-reports and a post that looks like
+    2953 characters is rejected at 3094.
+    """
+    return len(text.encode("utf-16-le")) // 2
+
+
 def report(text: str, image_file: Path = IMAGE_FILE) -> None:
-    chars = len(text)
+    units = li_len(text)
     paras = [p for p in text.split("\n\n") if p.strip()]
     tags = [w for w in text.split() if w.startswith("#")]
-    print(f"  characters : {chars}")
+    print(f"  characters : {len(text)}")
+    print(f"  LinkedIn   : {units} / {LINKEDIN_LIMIT} UTF-16 units"
+          f"{'  OVER LIMIT' if units > LINKEDIN_LIMIT else ''}")
     print(f"  paragraphs : {len(paras)}")
     print(f"  hashtags   : {len(tags)}")
     print(f"  image      : {'found' if image_file.exists() else 'MISSING'} "
           f"({image_file.name})")
     # LinkedIn truncates the feed preview at ~210 chars behind "…see more",
-    # and hard-caps a post at 3000.
-    if chars > 3000:
-        print(f"  WARNING: {chars} > 3000 char limit — LinkedIn will reject it.")
+    # and hard-caps a post at LINKEDIN_LIMIT UTF-16 units.
+    if units > LINKEDIN_LIMIT:
+        print(f"  WARNING: {units} > {LINKEDIN_LIMIT} — LinkedIn will reject it "
+              f"(over by {units - LINKEDIN_LIMIT}).")
     print(f"\n  --- first 210 chars (the 'see more' fold) ---\n{text[:210]}…\n")
 
 
@@ -282,16 +315,41 @@ async def attach_image(page, path: Path) -> bool:
 
 
 async def save_as_draft(page) -> bool:
-    """Dismiss the composer and take LinkedIn's "Save as draft" offer."""
-    close = await first_visible(page, SEL["dismiss"], timeout=6000)
-    if not close:
-        return False
-    await close.click()
-    await page.wait_for_timeout(1500)
+    """Dismiss the composer and take LinkedIn's "Save as draft" offer.
 
-    save = await first_visible(page, SEL["save_draft"], timeout=6000)
+    Dismissing raises a "Discard post" confirmation whose buttons are
+    "Go back" and "Discard". Neither is safe to click blindly: Discard throws
+    the post away, which is the exact opposite of this script's purpose. So we
+    only ever click an affirmative *save* control, and if none exists we press
+    "Go back" to keep the draft on screen and hand control to the human.
+
+    The save prompt may already be open (LinkedIn sometimes raises it from the
+    image step), so look for it *before* clicking dismiss — clicking the
+    composer's X while the prompt is up targets a covered element and hangs
+    until timeout.
+    """
+    save = await first_visible(page, SEL["save_draft"], timeout=2500)
     if not save:
+        close = await first_visible(page, SEL["dismiss"], timeout=6000)
+        if not close:
+            return False
+        await close.click()
+        await page.wait_for_timeout(1800)
+        save = await first_visible(page, SEL["save_draft"], timeout=6000)
+
+    if not save:
+        # No save affordance in this UI variant. Do not touch "Discard".
+        back = await first_visible(
+            page, ["button:has-text('Go back')",
+                   "div[role='button']:has-text('Go back')"], timeout=3000)
+        if back:
+            await back.click()
+            await page.wait_for_timeout(1200)
         return False
+
+    label = ((await save.inner_text()) or "").strip().lower()
+    if "discard" in label:
+        return False   # never confirm a discard
     await save.click()
     await page.wait_for_timeout(2500)
     return True
@@ -311,8 +369,9 @@ async def create_draft(args: argparse.Namespace) -> int:
         print("Dry run — no browser launched, nothing sent to LinkedIn.")
         return 0
 
-    if len(text) > 3000:
-        print("Refusing to continue: over LinkedIn's 3000-character limit.")
+    if li_len(text) > LINKEDIN_LIMIT:
+        print(f"Refusing to continue: {li_len(text)} UTF-16 units exceeds "
+              f"LinkedIn's {LINKEDIN_LIMIT} limit.")
         return 2
 
     if not (SESSION_FILE.exists() or PROFILE_DIR.exists()):

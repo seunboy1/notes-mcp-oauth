@@ -122,8 +122,10 @@ scripts/
   verify_oauth.py         resource-server behaviour
   verify_browser_flow.py  full browser OAuth flow via Playwright
   publish_to_medium.py    push the article to Medium with Playwright
+  post_to_linkedin.py     draft a LinkedIn post with Playwright
 clients/                configs for Cursor, Claude Desktop, VS Code
 article/                the write-up and its screenshots
+linkedin/               post drafts (each `X.md` pairs with `X.png`)
 ```
 
 ## Security notes
@@ -183,3 +185,35 @@ These cost a few hours to discover and are the reason the script works:
 
 `.medium-session.json` and `.medium-profile/` hold live credentials and are
 gitignored. Treat them like passwords.
+
+## Drafting the LinkedIn post
+
+```bash
+uv run scripts/post_to_linkedin.py --login                      # one-time
+uv run scripts/post_to_linkedin.py --dry-run --post linkedin/mcp-oauth-post.md
+uv run scripts/post_to_linkedin.py --post linkedin/mcp-oauth-post.md
+```
+
+A post is a `(text, image)` pair: `--image` is optional and defaults to the
+`.png` sitting beside the `.md`. The script has **no publish path** — it types,
+attaches, saves a draft, and leaves "Post" to you.
+
+### What the composer actually needs (found by probing, not guessing)
+
+- **LinkedIn counts UTF-16 code units, not characters.** The unicode-bold
+  headers (`𝗟𝗶𝗸𝗲 𝘁𝗵𝗶𝘀`) are astral and cost **two** each, so `len(text)`
+  under-reports: a "2953-character" post is rejected at 3094. `li_len()` is the
+  only count that matches the composer's own counter.
+- **The feed ships hashed class names** (`aa973a6b _13f3dfd8 …`) that change
+  between deploys. Visible text and ARIA roles are the only durable anchors.
+- **The composer entry is a `div[role=button]`**, not a `<button>`.
+- **The media button is `aria-label='Media'`**, not `'Add media'`.
+- **Once a draft exists the entry point relabels to `Draft: "…"`** — match that
+  too, or a signed-in session looks signed-out on the next run.
+- **The dismiss prompt puts `Discard` next to `Save as draft`.** Never click a
+  discard: match save affirmatively, otherwise press "Go back". And check for
+  the prompt *before* clicking the composer's X, since clicking a covered
+  element hangs until timeout.
+
+`.linkedin-session.json`, `.linkedin-profile/`, and `linkedin/shots/` are
+gitignored for the same reason.

@@ -1,0 +1,18 @@
+{
+  "_comment": [
+    "VS Code / GitHub Copilot MCP config. Place at .vscode/mcp.json in a",
+    "workspace, or add to your user settings under the same key.",
+    "Both stages are shown; keep the one you need."
+  ],
+  "servers": {
+    "notes-local": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--directory", "ABSOLUTE_PATH/Mcp-server", "notes_mcp/v1_local.py"]
+    },
+    "notes": {
+      "type": "http",
+      "url": "http://localhost:8000/mcp"
+    }
+  }
+}

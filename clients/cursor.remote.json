@@ -1,0 +1,17 @@
+{
+  "_comment": [
+    "Stage 2 and 3: the client connects to a URL. The /mcp suffix is required.",
+    "",
+    "Stage 2 (v2_remote.py) needs nothing else - which is exactly the problem.",
+    "Stage 3 (v3_oauth.py) needs no config either: the server answers the first",
+    "call with 401 + WWW-Authenticate, the client discovers the authorization",
+    "server, registers itself, and opens a browser. You never paste a key.",
+    "",
+    "Swap in your deployed hostname for production."
+  ],
+  "mcpServers": {
+    "notes": {
+      "url": "http://localhost:8000/mcp"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "_comment": [
+    "Stage 1: Cursor launches the server as a subprocess and talks JSON-RPC over stdio.",
+    "Paste into Cursor > Settings > Tools & MCP > Add custom MCP, or into",
+    "~/.cursor/mcp.json. Replace ABSOLUTE_PATH with the repo path (run `pwd`).",
+    "Claude Desktop uses the identical shape in claude_desktop_config.json."
+  ],
+  "mcpServers": {
+    "notes-local": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "ABSOLUTE_PATH/Mcp-server",
+        "notes_mcp/v1_local.py"
+      ],
+      "env": {
+        "SQLITE_PATH": "ABSOLUTE_PATH/Mcp-server/notes.db"
+      }
+    }
+  }
+}

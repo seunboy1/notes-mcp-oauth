@@ -1,0 +1,24 @@
+[project]
+name = "notes-mcp"
+version = "0.3.0"
+description = "A Notes MCP server in three stages: local stdio, remote HTTP, and remote HTTP with OAuth 2.1 + scopes"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.10.0",
+    "python-dotenv>=1.0.1",
+    "httpx>=0.27.0",
+    "pyjwt[crypto]>=2.9.0",
+    "uvicorn>=0.30.0",
+]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.2.0"]
+dev = ["pytest>=8.0.0", "pytest-asyncio>=0.24.0"]
+publish = ["playwright>=1.48.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["notes_mcp"]

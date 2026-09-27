@@ -1,0 +1,15 @@
+.venv/
+.tools/
+__pycache__/
+*.pyc
+.env
+notes.db
+.playwright/
+article/*.draft.json
+.medium-session.json
+.medium-profile/
+
+# LinkedIn drafting credentials
+.linkedin-session.json
+.linkedin-profile/
+linkedin/shots/

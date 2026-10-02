@@ -5,11 +5,13 @@ __pycache__/
 .env
 notes.db
 .playwright/
-article/*.draft.json
 .medium-session.json
 .medium-profile/
 
 # LinkedIn drafting credentials
 .linkedin-session.json
 .linkedin-profile/
-linkedin/shots/
+
+# Content drafts — local only, not pushed to GitHub
+linkedin/
+article/

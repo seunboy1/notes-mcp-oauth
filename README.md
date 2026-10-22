@@ -54,9 +54,8 @@ python3 ~/.claude/scripts/verify_browser_flow.py      # 28 checks: the whole OAu
 HEADED=1 python3 ~/.claude/scripts/verify_browser_flow.py   # watch it click through
 ```
 
-`verify_browser_flow.py` lives outside this repo, in `~/.claude/scripts/` — it
-is a general-purpose Playwright helper shared across projects (see
-[Shared Playwright helpers](#shared-playwright-helpers) below), not a
+`verify_browser_flow.py` lives outside this repo, in `~/.claude/scripts/` — a
+general-purpose Playwright helper shared across projects, not a
 project-specific test. It imports `notes_mcp` from whichever directory it is
 run in, so invoke it from this repo's root.
 
@@ -127,15 +126,7 @@ scripts/
   verify_basic.py         stage 1 and 2
   verify_oauth.py         resource-server behaviour
 clients/                configs for Cursor, Claude Desktop, VS Code
-article/                the write-up and its screenshots
-linkedin/               post drafts (each `X.md` pairs with `X.png`)
 ```
-
-Playwright-driven scripts (`verify_browser_flow.py`, `publish_to_medium.py`,
-`post_to_linkedin.py`, `delete_medium_drafts.py`, `html_to_pdf.py`) are not
-project files — they live in `~/.claude/scripts/` as general-purpose helpers
-usable from any project directory. See
-[Shared Playwright helpers](#shared-playwright-helpers).
 
 ## Security notes
 
@@ -153,118 +144,7 @@ usable from any project directory. See
 - **`dev_auth_server.py` is not production software.** Ephemeral in-memory keys,
   no password check, no rate limiting. Delegate this to a real provider.
 
-## Publishing the article to Medium
+## Writing about this project
 
-Medium retired its publishing API in 2023, so `publish_to_medium.py` drives
-the real editor with Playwright. It lives in `~/.claude/scripts/` — a
-general-purpose helper, not a file in this repo (see
-[Shared Playwright helpers](#shared-playwright-helpers)).
-
-```bash
-uv pip install -e ".[publish]" && playwright install chromium
-
-python3 ~/.claude/scripts/publish_to_medium.py --login      # one-time, opens a browser
-python3 ~/.claude/scripts/publish_to_medium.py --dry-run    # parse only, no browser
-python3 ~/.claude/scripts/publish_to_medium.py              # create a draft
-python3 ~/.claude/scripts/publish_to_medium.py --publish    # draft + publish (asks to confirm)
-```
-
-Run it from this repo's root — it operates on whichever directory it is
-invoked from (`./article/...`, `./.medium-session.json`), not on a path
-fixed to its own location.
-
-The markdown converter handles headings, code blocks, dividers, lists,
-blockquotes, and image uploads. Defaults are safe: it stops at a draft, and
-`--publish` still requires typing `publish` at a prompt.
-
-### What the editor actually needs (found by probing, not guessing)
-
-These cost a few hours to discover and are the reason the script works:
-
-- **Code blocks are `Cmd/Ctrl+Alt+6`**, not `Alt+K`. Typing ``` ``` ``` does not
-  autoconvert.
-- **To leave a code block**, press Enter once and then *click* the trailing
-  paragraph. Toggling the shortcut off collapses the block back into prose, and
-  pressing Enter twice leaves the caret inside.
-- **Typing `---` does not create a divider** — it stays literal text. Use the
-  toolbar's `inline-menu-hr` button.
-- **The `+` toolbar buttons are always in the DOM but invisible** until the
-  parent `inline-menu` toggle is clicked, and that toggle only appears on an
-  **empty** paragraph. A divider or image after prose needs a blank line first.
-- **Lists continue automatically on Enter**, so only the first item in a run
-  should type its `- ` marker.
-- **Headings and quotes persist to the next block**; reset with `Cmd/Ctrl+Alt+0`.
-- **Headless Chromium gets a 403** from Medium's bot protection. Run headed.
-- **`**bold**` markers are typed literally** by the editor, so they are stripped
-  before typing; inline `` `code` `` is converted by Medium and is kept.
-
-`.medium-session.json` and `.medium-profile/` hold live credentials and are
-gitignored. Treat them like passwords.
-
-## Drafting the LinkedIn post
-
-`post_to_linkedin.py` also lives in `~/.claude/scripts/` (see
-[Shared Playwright helpers](#shared-playwright-helpers)); run it from this
-repo's root so its defaults (`./linkedin/post.md`, `./.linkedin-session.json`)
-resolve here.
-
-```bash
-python3 ~/.claude/scripts/post_to_linkedin.py --login                      # one-time
-python3 ~/.claude/scripts/post_to_linkedin.py --dry-run --post linkedin/mcp-oauth-post.md
-python3 ~/.claude/scripts/post_to_linkedin.py --post linkedin/mcp-oauth-post.md
-python3 ~/.claude/scripts/post_to_linkedin.py --post linkedin/mcp-oauth-post.md --document path/to/carousel.pdf --doc-title "Title"
-```
-
-A post is a `(text, image)` pair: `--image` is optional and defaults to the
-`.png` sitting beside the `.md`. The script has **no publish path** — it types,
-attaches, saves a draft, and leaves "Post" to you.
-
-### What the composer actually needs (found by probing, not guessing)
-
-- **LinkedIn counts UTF-16 code units, not characters.** The unicode-bold
-  headers (`𝗟𝗶𝗸𝗲 𝘁𝗵𝗶𝘀`) are astral and cost **two** each, so `len(text)`
-  under-reports: a "2953-character" post is rejected at 3094. `li_len()` is the
-  only count that matches the composer's own counter.
-- **The feed ships hashed class names** (`aa973a6b _13f3dfd8 …`) that change
-  between deploys. Visible text and ARIA roles are the only durable anchors.
-- **The composer entry is a `div[role=button]`**, not a `<button>`.
-- **The media button is `aria-label='Media'`**, not `'Add media'`.
-- **Once a draft exists the entry point relabels to `Draft: "…"`** — match that
-  too, or a signed-in session looks signed-out on the next run.
-- **The dismiss prompt puts `Discard` next to `Save as draft`.** Never click a
-  discard: match save affirmatively, otherwise press "Go back". And check for
-  the prompt *before* clicking the composer's X, since clicking a covered
-  element hangs until timeout.
-
-`.linkedin-session.json`, `.linkedin-profile/`, and `linkedin/shots/` are
-gitignored for the same reason.
-
-## Shared Playwright helpers
-
-Five scripts drive a real browser with Playwright: `verify_browser_flow.py`,
-`publish_to_medium.py`, `post_to_linkedin.py`, `delete_medium_drafts.py`, and
-`html_to_pdf.py` (renders any HTML file to PDF, honoring its own `@page`
-size — used to build the LinkedIn carousel PDFs in `linkedin/`). None of them
-are project files. They live in `~/.claude/scripts/` as general-purpose
-helpers, usable from any project directory, not just this one.
-
-Each resolves its working files (`.env`-adjacent session files, `article/`,
-`linkedin/`, etc.) relative to **the directory it is invoked from**, not its
-own location — so always run them from this repo's root:
-
-```bash
-cd /path/to/mcp-server-oauth
-python3 ~/.claude/scripts/post_to_linkedin.py --login
-```
-
-`delete_medium_drafts.py` loads `publish_to_medium.py` as a sibling module by
-file path, so the two must stay in the same folder as each other (wherever
-that folder is) even though neither is tied to this project's folder.
-
-Install Playwright once, in whatever Python environment you'll invoke these
-with:
-
-```bash
-python3 -m pip install playwright
-playwright install chromium
-```
+Notes on turning this work into a Medium article or a LinkedIn post live in
+`PUBLISHING.md`, which is local-only and not pushed to GitHub.

@@ -143,8 +143,3 @@ clients/                configs for Cursor, Claude Desktop, VS Code
   id is absent or owned by someone else.
 - **`dev_auth_server.py` is not production software.** Ephemeral in-memory keys,
   no password check, no rate limiting. Delegate this to a real provider.
-
-## Writing about this project
-
-Notes on turning this work into a Medium article or a LinkedIn post live in
-`PUBLISHING.md`, which is local-only and not pushed to GitHub.
